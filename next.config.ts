@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // 保持配置简洁，不添加任何可能与 Vercel 冲突的定制项
+  // 最终配置：解决 pdfjs-dist 找不到文件的问题
+  serverExternalPackages: ['pdfjs-dist/legacy', 'pdfjs-dist'],
 };
 
 export default nextConfig;
