@@ -1,8 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // 告诉 Next.js：这个包是给后台用的，不要强行打包到前端去
-  serverExternalPackages: ['pdfjs-dist'],
+  // 解决 pdfjs-dist 在 Vercel 上找不到文件的 Bug
+  // 关键：将 pdfjs-dist/legacy 声明为外部包
+  serverExternalPackages: ['pdfjs-dist/legacy', 'pdfjs-dist'],
 };
 
 export default nextConfig;
