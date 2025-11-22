@@ -1,65 +1,146 @@
-import Image from "next/image";
+'use client';
+
+import { useChat } from 'ai/react';
+import { useState } from 'react';
 
 export default function Home() {
+  const { messages, input, handleInputChange, handleSubmit, setMessages } = useChat();
+  
+  // 用来存 PDF 的文字内容
+  const [pdfText, setPdfText] = useState("");
+  // 用来存 PDF 的预览地址
+  const [pdfUrl, setPdfUrl] = useState("");
+  // 上传状态
+  const [isLoading, setIsLoading] = useState(false);
+
+  // 当用户选择文件时触发
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsLoading(true);
+
+    // 1. 本地预览：创建一个临时的 URL 给 iframe 用
+    const url = URL.createObjectURL(file);
+    setPdfUrl(url);
+
+    // 2. 偷偷上传给后台，让它提取文字
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      
+      if (data.text) {
+        setPdfText(data.text);
+        // 给 AI 发一个系统提示，告诉它这是刚才上传的文档
+        setMessages([
+          {
+            id: 'system-1',
+            role: 'system',
+            content: `你是一个文档助手。用户刚刚上传了一个文档，内容如下：\n\n${data.text}\n\n请根据以上内容回答用户的问题。`
+          },
+          {
+            id: 'ai-welcome',
+            role: 'assistant',
+            content: '文档已上传并读取成功！现在你可以问我关于它的问题了。'
+          }
+        ]);
+      }
+    } catch (error) {
+      alert("读取 PDF 失败，请重试");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div style={{ display: 'flex', height: '100vh', fontFamily: 'sans-serif' }}>
+      
+      {/* 左侧：PDF 区域 */}
+      <div style={{ width: '50%', backgroundColor: '#f3f4f6', borderRight: '1px solid #ccc', display: 'flex', flexDirection: 'column' }}>
+        
+        {/* 上传按钮条 */}
+        <div style={{ padding: '15px', backgroundColor: 'white', borderBottom: '1px solid #ddd', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <input 
+            type="file" 
+            accept=".pdf"
+            onChange={handleFileChange}
+            style={{ fontSize: '14px' }}
+          />
+          {isLoading && <span style={{ color: 'blue', fontSize: '14px' }}>正在读取文字...</span>}
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+
+        {/* PDF 预览区 */}
+        <div style={{ flex: 1, backgroundColor: '#525659' }}>
+          {pdfUrl ? (
+            <iframe 
+              src={pdfUrl} 
+              style={{ width: '100%', height: '100%', border: 'none' }} 
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          ) : (
+            <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ccc' }}>
+              请在上方上传 PDF 文件
+            </div>
+          )}
         </div>
-      </main>
+      </div>
+
+      {/* 右侧：AI 聊天区域 */}
+      <div style={{ width: '50%', display: 'flex', flexDirection: 'column', height: '100%' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+          {messages.length === 0 && !pdfText && (
+            <div style={{ color: '#888', textAlign: 'center', marginTop: '20%' }}>
+              👈 请先在左侧上传一个 PDF
+            </div>
+          )}
+          
+          {messages.map(m => (
+            m.role !== 'system' && ( // 不显示系统提示语
+              <div key={m.id} style={{ marginBottom: '15px', textAlign: m.role === 'user' ? 'right' : 'left' }}>
+                <span style={{ 
+                  display: 'inline-block', 
+                  padding: '10px 15px', 
+                  borderRadius: '10px', 
+                  backgroundColor: m.role === 'user' ? '#007bff' : '#e9ecef',
+                  color: m.role === 'user' ? 'white' : 'black',
+                  maxWidth: '80%',
+                  lineHeight: '1.6'
+                }}>
+                  {m.content}
+                </span>
+              </div>
+            )
+          ))}
+        </div>
+
+        <form onSubmit={handleSubmit} style={{ padding: '20px', borderTop: '1px solid #eee', display: 'flex' }}>
+          <input
+            value={input}
+            onChange={handleInputChange}
+            placeholder="问问关于文档的事..."
+            style={{ flex: 1, padding: '10px', borderRadius: '5px', border: '1px solid #ccc', marginRight: '10px', color: 'black' }}
+            disabled={!pdfText} // 没传文件时不让发消息
+          />
+          <button 
+            type="submit" 
+            disabled={!pdfText}
+            style={{ 
+              padding: '10px 20px', 
+              backgroundColor: pdfText ? '#007bff' : '#ccc', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: '5px', 
+              cursor: pdfText ? 'pointer' : 'not-allowed' 
+            }}>
+            发送
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
